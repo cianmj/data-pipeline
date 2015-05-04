@@ -21,7 +21,7 @@ kinesis = boto.connect_kinesis()
 from KinesisPoster import KinesisPoster
 
 import gzip
-from cStringIO import StringIO
+#from cStringIO import StringIO
 
 # buf = StringIO()
 # f = gzip.GzipFile(mode='wb', fileobj=buf)

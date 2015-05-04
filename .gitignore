@@ -2,6 +2,7 @@
 *.tar
 *.zip
 *.gz
+*.pem
 data/
 newdata/
 olddata/
