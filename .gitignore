@@ -1,0 +1,7 @@
+*.csv
+*.tar
+*.zip
+*.gz
+data/
+newdata/
+olddata/
