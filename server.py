@@ -2,38 +2,11 @@ import socket
 import sys
 import time
 import threading
+import select
+import Queue
 
 from collections import OrderedDict
-
-# Create a TCP/IP socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-# Bind the socket to the port
-server_address = ('localhost', 10000)
-print >>sys.stderr, 'starting up on %s port %s' % server_address
-sock.bind(server_address)
-
-
-import boto
-from boto.kinesis.exceptions import ResourceNotFoundException
-kinesis = boto.connect_kinesis()
-
-from KinesisPoster import KinesisPoster
-
 import gzip
-#from cStringIO import StringIO
-
-# buf = StringIO()
-# f = gzip.GzipFile(mode='wb', fileobj=buf)
-# try:
-#     f.write(uncompressed_data)
-# finally:
-#     f.close()
-# content = "Lots of content here"
-# f = gzip.open('file.txt.gz', 'wb')
-# f.write(content)
-# f.close()
-
 
 def sum_posts(kinesis_actors):
     """Sum all posts across an array of KinesisPosters
@@ -99,45 +72,69 @@ def gzip_data(data_set,batch_id):
     print filename
     return data_set
 
-def main():
-    
-    #stream_name = 'eeg'
-    #shard_count = 1
-    #part_key = 'co3c0000402'
-    #poster_name = '119'
-    #poster_time = 1
-    max_bytes = 4096 * 2
 
-    #stream = get_or_create_stream(stream_name, shard_count)
-    #print kinesis.describe_stream(stream_name)
+def main(port):
+    # Create a TCP/IP socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setblocking(0)
+
+    # Bind the socket to the port
+    server_address = ('localhost', port)
+    print >>sys.stderr, 'starting up on %s port %s' % server_address
+    sock.bind(server_address)
+    #sock.listen(5)
+    inputs = [ sock ]
+    outputs = [ ]
+
+    timeout = 10
+    max_bytes = 4096 * 2
 
     threads = []
     data_set = []
-    while True:
-        print >>sys.stderr, '\nwaiting to receive message'
+    while inputs:
+        print >>sys.stderr, '\nwaiting to receive message, from port '+str(port)
         # Capture data with following structure :
         # [subject_id, status_id, sampling_rate, matching_condition, trial_number, electrode_location, sample_number, sensor_value]
-        data, address = sock.recvfrom(4096)
-        print >>sys.stderr, 'received %s bytes from %s' % (len(data), address)
-        print >>sys.stderr, data
-        #json = data_formating(data)
-
-        #kinesis_poster(stream_name,part_key,poster_name,poster_time,data)
-        data_set.append(data)
-        print 'size: ',sys.getsizeof(data_set)
-        if sys.getsizeof(data_set) >= max_bytes:
+        readable, writable, exceptional = select.select(inputs, outputs, inputs, timeout)
+        
+        if not (readable or writable or exceptional) and len(data_set) != 0:
+            print >>sys.stderr, '  timed out, creating gzip.'
             batch_id = int(time.time())
             t = threading.Thread(target=gzip_data, args=(data_set,batch_id,))
             threads.append(t)
             t.start()
             data_set = []
+            continue
 
-        if data:
-            sent = sock.sendto(data, address)
-        #    print >>sys.stderr, 'sent %s bytes back to %s' % (sent, address)
+        if readable:
+            data, address = sock.recvfrom(4096)
+            print >>sys.stderr, 'received %s bytes from %s' % (len(data), address)
+            print >>sys.stderr, data
+            #json = data_formating(data)
+
+            data_set.append(data)
+            print 'size: ',sys.getsizeof(data_set)
+            if sys.getsizeof(data_set) >= max_bytes:
+                batch_id = int(time.time())
+                t = threading.Thread(target=gzip_data, args=(data_set,batch_id,))
+                threads.append(t)
+                t.start()
+                data_set = []
+
+            if data:
+                sent = sock.sendto(data, address)
+            #    print >>sys.stderr, 'sent %s bytes back to %s' % (sent, address)
 
 
+if __name__ == '__main__': 
+    import argparse
+    parser = argparse.ArgumentParser(description="""Server simulates the device and captures signals from the 
+                                                    wearable from the socket""")
+    parser.add_argument('-p','--port',default=10000)
+    args = parser.parse_args()
+    
+    port = int(args.port)
+
+    main(port)
 
 
-if __name__ == '__main__':
-    main()

@@ -54,10 +54,10 @@ def pause_function(reason,seconds):
     stdout.write("\n") 
 
 
+s3_folder = 'rawdata'
 newdata = 'newdata'
 olddata = 'olddata'
 while True:
-
     while internet_on():
         try:
             bucket = conn.get_bucket('eeg-testing',location=Location.DEFAULT)
@@ -70,7 +70,7 @@ while True:
             print file
             filepath = newdata+'/'+file
             try:
-                k.key = file.replace('-','/')
+                k.key = s3_folder + '/' +file.replace('-','/')
                 k.set_contents_from_filename(filepath)
                 shutil.move(filepath, olddata+'/'+file)
             except:
