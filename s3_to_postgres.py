@@ -54,7 +54,7 @@ def postgres_connection():
 # Raw Data Structure
 # subject_id, status_id, sampling_rate, matching_condition, trial_number, electrode_location, sample_number, sensor_value
 def load_data(bucket,key_dict):
-    #engine = postgres_connection()
+    engine = postgres_connection()
 
     columns = ['subject_id','status_id','sampling_rate','matching_condition','trial_number','electrode_location','sample_number','sensor_value']
     for cid,s3_keys in key_dict.iteritems():
@@ -65,8 +65,7 @@ def load_data(bucket,key_dict):
             data = gzip_file.read().split(';')
             data = [val.split(',') for val in data]
             df = pd.DataFrame(data,columns=columns)
-            print df.head()
-            exit()
+            df.to_sql('eeg_raw', con=engine, index=False, if_exists='append', chunksize=20000) #schema='prod')
 
 
 if __name__ == '__main__':
@@ -78,12 +77,7 @@ if __name__ == '__main__':
     load_data(bucket,key_dict)
 
 
-
-#df.to_sql('table_name', con=engine, index=False, if_exists='append', chunksize=20000)
-
-
-
-
 #
 #sqlString = "SELECT * FROM SOMETABLE"    # SOMETABLE is a view in mySchemaName 
 #df = pd.read_sql(sqlString, con=engine) 
+#
